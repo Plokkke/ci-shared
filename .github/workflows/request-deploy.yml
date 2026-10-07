@@ -36,13 +36,19 @@ jobs:
             version="${VERSION#v}"
           else
             ref="$SHA"
-            version=""
+            version=NONE
+            # Only requests made by this workflow carry payload.version (possibly empty for stacks without image).
             for id in $(gh api "repos/$REPO/deployments?environment=$ENVIRONMENT&per_page=30" --jq '.[].id'); do
               if [ "$(gh api "repos/$REPO/deployments/$id/statuses?per_page=1" --jq '.[0].state // ""')" = success ]; then
-                version=$(gh api "repos/$REPO/deployments/$id" --jq '.payload.version // ""')
-                break
+                version=$(gh api "repos/$REPO/deployments/$id" \
+                  --jq 'if (.payload | type) == "object" and (.payload | has("version")) then .payload.version else "NONE" end')
+                [ "$version" != NONE ] && break
               fi
             done
+            if [ "$version" = NONE ]; then
+              echo "::notice::Nothing deployed by the deployer yet: run this workflow manually with a version."
+              exit 0
+            fi
           fi
           jq -n --arg ref "$ref" --arg env "$ENVIRONMENT" --arg version "$version" \
             '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [],
