@@ -1,0 +1,50 @@
+# Requests a deployment through the GitHub Deployments API. The home server's deployer polls
+# these requests, applies the repository's Terraform stack at `ref` and reports the status.
+# No secret involved: the caller's GITHUB_TOKEN needs `deployments: write`.
+name: Request deploy
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version to deploy (X.Y.Z). Empty = infrastructure change at this commit, keeping the deployed version.
+        type: string
+        default: ''
+      environment:
+        type: string
+        default: production
+
+permissions:
+  deployments: write
+  contents: read
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          VERSION: ${{ inputs.version }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          if [ -n "$VERSION" ]; then
+            ref="v${VERSION#v}"
+            version="${VERSION#v}"
+          else
+            ref="$SHA"
+            version=""
+            for id in $(gh api "repos/$REPO/deployments?environment=$ENVIRONMENT&per_page=30" --jq '.[].id'); do
+              if [ "$(gh api "repos/$REPO/deployments/$id/statuses?per_page=1" --jq '.[0].state // ""')" = success ]; then
+                version=$(gh api "repos/$REPO/deployments/$id" --jq '.payload.version // ""')
+                break
+              fi
+            done
+          fi
+          jq -n --arg ref "$ref" --arg env "$ENVIRONMENT" --arg version "$version" \
+            '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [],
+              payload: {version: $version}, description: "requested by \(env.GITHUB_ACTOR)"}' \
+            | gh api "repos/$REPO/deployments" --input - --jq '"deployment #\(.id): ref \(.ref), version \(.payload.version)"'

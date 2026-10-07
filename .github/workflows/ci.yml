@@ -1,0 +1,16 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+      - name: Renovate preset
+        run: npx --yes --package renovate@latest -- renovate-config-validator renovate/default.json

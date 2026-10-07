@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate preset: one visible PR per update, never merged automatically.",
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommitTypeAll(chore)"],
+  "automerge": false,
+  "rangeStrategy": "pin",
+  "timezone": "Europe/Paris",
+  "schedule": ["every weekend"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Versions annotated with `# renovate: datasource=<x> depName=<y>` on the line above",
+      "managerFilePatterns": ["/\\.tf$/", "/\\.ya?ml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(\\s+versioning=(?<versioning>\\S+))?\\s*\\n[^\\n]*?[=:]\\s*\"?(?<currentValue>[^\"\\s#]+)\"?"
+      ]
+    }
+  ],
+  "packageRules": [
+    { "matchUpdateTypes": ["major"], "labels": ["breaking"] },
+    {
+      "description": "A Postgres major upgrade is a dump/restore, done by hand",
+      "matchDepNames": ["postgres", "docker.io/library/postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Tooling updates grouped weekly",
+      "matchManagers": ["github-actions", "terraform"],
+      "groupName": "tooling"
+    },
+    {
+      "description": "npm dependencies grouped weekly, majors apart",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm dependencies"
+    }
+  ]
+}
